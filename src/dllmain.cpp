@@ -5,6 +5,8 @@
 #include "imgui_impl_opengl3.h"
 #include "GLFW/glfw3.h"
 
+// --- To compile: g++ -shared -o output/ArchipelagoGUI.dll src/dllmain.cpp imgui/*.cpp -Iinclude -Iimgui -Llib -lglfw3 -lopengl32 -lgdi32 -lcomctl32 ---
+
 // --- LUA FUNCTION POINTERS ---
 typedef void(__cdecl* t_lua_createtable)(void* L, int narr, int nrec);
 typedef void(__cdecl* t_lua_pushstring)(void* L, const char* s);
@@ -29,13 +31,20 @@ HINSTANCE hInst;
 DWORD WINAPI GuiThread(LPVOID lpParam) {
     if (!glfwInit()) return 1;
 
-    // Create hidden window
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     
     GLFWwindow* window = glfwCreateWindow(360, 260, "Archipelago Connection", NULL, NULL);
     if (!window) return 1;
+
+    // --- THE FIX: CLOSE CALLBACK ---
+    // This intercepts the 'X' button click
+    glfwSetWindowCloseCallback(window, [](GLFWwindow* w) {
+        glfwSetWindowShouldClose(w, GLFW_FALSE); // Cancel the actual close
+        glfwHideWindow(w);                       // Just hide the window
+        g_showGui = false;                       // Sync our toggle variable
+    });
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); 
@@ -46,7 +55,8 @@ DWORD WINAPI GuiThread(LPVOID lpParam) {
     ImGui_ImplOpenGL3_Init("#version 130");
 
     bool lastState = false;
-    while (!glfwWindowShouldClose(window)) {
+    // Changed while loop to true so the thread never dies
+    while (true) {
         glfwPollEvents();
 
         // F4 Toggle Logic
@@ -67,7 +77,6 @@ DWORD WINAPI GuiThread(LPVOID lpParam) {
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            // Fill the whole GLFW window with our ImGui content
             ImGui::SetNextWindowPos(ImVec2(0, 0));
             ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
             ImGui::Begin("Archipelago Settings", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove);
@@ -94,10 +103,11 @@ DWORD WINAPI GuiThread(LPVOID lpParam) {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             glfwSwapBuffers(window);
         } else {
-            Sleep(16); // ~60fps idle
+            Sleep(16); // Idle when hidden to save CPU
         }
     }
 
+    // These will technically never be reached now unless you add a break condition
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -107,14 +117,13 @@ DWORD WINAPI GuiThread(LPVOID lpParam) {
 }
 
 // --- MODULE EXPORTS ---
-
 extern "C" int l_get_data(void* L) {
     if (g_pending && p_lua_pushstring) {
         p_lua_createtable(L, 0, 3);
         p_lua_pushstring(L, g_host); p_lua_setfield(L, -2, "host");
         p_lua_pushstring(L, g_slot); p_lua_setfield(L, -2, "slot");
         p_lua_pushstring(L, g_pass); p_lua_setfield(L, -2, "password");
-        g_pending = false; // Reset after reading
+        g_pending = false;
         return 1;
     }
     return 0;

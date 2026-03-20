@@ -1,6 +1,8 @@
 #include "pch.h"
 #include <windows.h>
 
+// -- Compile DLL: g++ -shared -o output/ArchipelagoGUI.dll dllmain.cpp -luser32 -lgdi32 -lcomctl32
+
 // --- LUA FUNCTION POINTERS ---
 typedef void* (__cdecl* t_luaL_newstate)(void);
 typedef void(__cdecl* t_lua_createtable)(void* L, int narr, int nrec);
@@ -115,8 +117,8 @@ extern "C" int l_peek_data(void* L) {
 struct luaL_Reg { const char* name; void* func; };
 
 const luaL_Reg guilib[] = {
-    {"get_data", l_get_data},
-    {"peek_data", l_peek_data},
+    {"get_data", (void*)l_get_data},
+    {"peek_data", (void*)l_peek_data},
     {NULL, NULL}
 };
 
